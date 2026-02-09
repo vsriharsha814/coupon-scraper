@@ -1,6 +1,7 @@
 import json
 import time
 import os
+import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -8,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ================= CONFIGURATION =================
-TARGET_LOCATION = "Boulder" 
+TARGET_LOCATION = "Columbia" 
 # =================================================
 
 def get_brave_driver():
@@ -34,11 +35,10 @@ def scrape_coupons():
     }
     
     try:
-        print(f"--- TIER 1: Accessing Homepage (Filtering Expired) ---")
+        print(f"--- TIER 1: Accessing Homepage ---")
         driver.get("https://coupons-2save.com/greatclips")
         time.sleep(3)
         
-        # Scans for non-expired items based on your inspection screenshot
         items = driver.find_elements(By.CLASS_NAME, "com-content-category-blog__item")
         category_links = []
         
@@ -52,6 +52,7 @@ def scrape_coupons():
             except: continue
 
         category_links = list(set(category_links))
+        log_data["results"]["categories_found"] = category_links
         print(f"Found {len(category_links)} active deal categories.")
 
         all_offer_urls = []
@@ -63,46 +64,44 @@ def scrape_coupons():
                 url = offer.get_attribute("href")
                 if url and url not in all_offer_urls: all_offer_urls.append(url)
         
-        print(f"\n--- TIER 3: Diagnostic Scan ---")
+        print(f"\n--- TIER 3: Strict Scanning for '{TARGET_LOCATION}' ---")
         matches = []
+        
+        # Regex setup: matches standalone word, case-insensitive
+        pattern = re.compile(rf'\b{re.escape(TARGET_LOCATION)}\b', re.IGNORECASE)
+        
         for i, url in enumerate(all_offer_urls):
-            print(f"\n[{i+1}/{len(all_offer_urls)}] Checking: {url}")
+            print(f"[{i+1}/{len(all_offer_urls)}] Checking: {url}")
             entry = {"url": url, "match": False, "raw_description": ""}
             
             try:
                 driver.get(url)
-                # Targeting the ID you identified in the browser inspector
                 details_element = wait.until(EC.presence_of_element_located((By.ID, "offer-details")))
                 time.sleep(2)
                 
-                # Capture the full text to debug the false positive
                 full_text = details_element.text
                 entry["raw_description"] = full_text
                 
-                lowered_text = full_text.lower()
-                search_term = TARGET_LOCATION.lower()
+                # FIX: Remove the boilerplate 'All Great Clips' footer entirely before checking
+                # This prevents the 'all' false positive you saw in Fresno/Saint Joseph links.
+                relevant_content = full_text.split("All Great Clips")[0]
                 
-                print(f"    DEBUG TEXT FOUND: \"{full_text[:150].strip()}...\"")
-                
-                if search_term in lowered_text or "all" in lowered_text:
-                    # Logic to ensure the location is actually in the 'valid at' sentence
-                    # and not just a footer link or related salon address
-                    if any(key in lowered_text for key in ["valid", "participating", "salons"]):
-                        print(f"    !!! VERIFIED MATCH for {TARGET_LOCATION}")
-                        entry["match"] = True
-                        matches.append(url)
+                # Check for the target location specifically
+                if pattern.search(relevant_content):
+                    print(f"    !!! VERIFIED MATCH FOUND FOR {TARGET_LOCATION}")
+                    entry["match"] = True
+                    matches.append(url)
                 else:
                     print(f"    [-] No match for {TARGET_LOCATION}.")
             
             except Exception as e:
-                print(f"    [!] Details ID not found or error: {str(e)[:50]}")
+                print(f"    [!] ID 'offer-details' not found or timeout.")
             
             log_data["results"]["offers_scanned"].append(entry)
             save_log(log_data)
 
-        print(f"\n--- FINISHED ---")
-        print(f"Total Matches: {len(matches)}")
-        print(f"Check 'scrape_log.json' to see the 'raw_description' for every link.")
+        print(f"\n--- SCRAPE FINISHED ---")
+        print(f"Total Verified Matches: {len(matches)}")
 
     finally:
         driver.quit()
