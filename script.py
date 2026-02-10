@@ -9,7 +9,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # ================= CONFIGURATION =================
-TARGET_LOCATION = "Columbia" 
+# You can now set this to "Boulder", "Columbia", or "all" safely.
+TARGET_LOCATION = "Boulder" 
 # =================================================
 
 def get_brave_driver():
@@ -35,7 +36,7 @@ def scrape_coupons():
     }
     
     try:
-        print(f"--- TIER 1: Accessing Homepage ---")
+        print(f"--- TIER 1: Accessing Homepage (Filtering Expired) ---")
         driver.get("https://coupons-2save.com/greatclips")
         time.sleep(3)
         
@@ -64,10 +65,8 @@ def scrape_coupons():
                 url = offer.get_attribute("href")
                 if url and url not in all_offer_urls: all_offer_urls.append(url)
         
-        print(f"\n--- TIER 3: Strict Scanning for '{TARGET_LOCATION}' ---")
+        print(f"\n--- TIER 3: Scanning for '{TARGET_LOCATION}' ---")
         matches = []
-        
-        # Regex setup: matches standalone word, case-insensitive
         pattern = re.compile(rf'\b{re.escape(TARGET_LOCATION)}\b', re.IGNORECASE)
         
         for i, url in enumerate(all_offer_urls):
@@ -82,26 +81,31 @@ def scrape_coupons():
                 full_text = details_element.text
                 entry["raw_description"] = full_text
                 
-                # FIX: Remove the boilerplate 'All Great Clips' footer entirely before checking
-                # This prevents the 'all' false positive you saw in Fresno/Saint Joseph links.
-                relevant_content = full_text.split("All Great Clips")[0]
+                # REMOVE THE BOILERPLATE: This gets rid of the 'All Great Clips...' sentence
+                # so that searching for 'all' won't cause a false positive.
+                clean_text = full_text.replace("All Great Clips® salons are independently owned and operated.", "")
+                clean_text = clean_text.replace("All Great Clips salons are independently owned and operated.", "")
                 
-                # Check for the target location specifically
-                if pattern.search(relevant_content):
-                    print(f"    !!! VERIFIED MATCH FOUND FOR {TARGET_LOCATION}")
-                    entry["match"] = True
-                    matches.append(url)
+                lowered_clean = clean_text.lower()
+                
+                # Now we can safely check for the target location or 'all' in the remaining text
+                if pattern.search(clean_text) or (TARGET_LOCATION.lower() == "all" and "all" in lowered_clean):
+                    # Ensure it's in the actual description context
+                    if any(key in lowered_clean for key in ["valid", "participating", "salons"]):
+                        print(f"    !!! VERIFIED MATCH FOUND FOR {TARGET_LOCATION}")
+                        entry["match"] = True
+                        matches.append(url)
                 else:
-                    print(f"    [-] No match for {TARGET_LOCATION}.")
+                    print(f"    [-] No match.")
             
             except Exception as e:
-                print(f"    [!] ID 'offer-details' not found or timeout.")
+                print(f"    [!] Error processing link.")
             
             log_data["results"]["offers_scanned"].append(entry)
             save_log(log_data)
 
         print(f"\n--- SCRAPE FINISHED ---")
-        print(f"Total Verified Matches: {len(matches)}")
+        print(f"Total Matches: {len(matches)}")
 
     finally:
         driver.quit()
