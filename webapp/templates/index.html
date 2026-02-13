@@ -197,6 +197,11 @@
             <div class="status-value idle" id="statusText">Ready</div>
         </div>
         
+        <div class="status-box" id="lastRunBox" style="display: none; border-left-color: #27ae60;">
+            <div class="status-label">Last Run</div>
+            <div style="font-size: 14px; color: #333;" id="lastRunTime">-</div>
+        </div>
+        
         <div class="button-group">
             <button id="runBtn" onclick="runScript()">Run Script</button>
             <button class="secondary" onclick="window.location.href='/dashboard'">View Results</button>
@@ -258,6 +263,17 @@
                         // Auto scroll to bottom
                         logsContainer.scrollTop = logsContainer.scrollHeight;
                     }
+                    
+                    // Update last run time from the scrape log
+                    fetch('/api/stats')
+                        .then(r => r.json())
+                        .then(stats => {
+                            if (stats.session_start && stats.session_start !== 'No data yet') {
+                                document.getElementById('lastRunBox').style.display = 'block';
+                                document.getElementById('lastRunTime').textContent = stats.session_start;
+                            }
+                        })
+                        .catch(() => {});
                     
                     // If running, keep polling frequently; if idle, poll less often
                     if (isRunning && !statusCheckInterval) {
