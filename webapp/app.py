@@ -103,7 +103,16 @@ def get_stats():
         log_file = os.path.join(parent_dir, 'scrape_log.json')
         
         if not os.path.exists(log_file):
-            return jsonify({"error": "No log file found"}), 404
+            # Return a default empty response instead of 404
+            return jsonify({
+                'session_start': 'No data yet',
+                'search_term': 'N/A',
+                'total_categories': 0,
+                'total_offers_scanned': 0,
+                'matches_found': 0,
+                'categories': [],
+                'matches': []
+            })
         
         with open(log_file, 'r') as f:
             data = json.load(f)
@@ -124,7 +133,16 @@ def get_stats():
         
         return jsonify(stats)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'error': str(e),
+            'session_start': 'Error loading',
+            'search_term': 'N/A',
+            'total_categories': 0,
+            'total_offers_scanned': 0,
+            'matches_found': 0,
+            'categories': [],
+            'matches': []
+        })
 
 @app.route('/api/search', methods=['GET'])
 def search_offers():
@@ -137,7 +155,11 @@ def search_offers():
         log_file = os.path.join(parent_dir, 'scrape_log.json')
         
         if not os.path.exists(log_file):
-            return jsonify({"error": "No log file found"}), 404
+            # Return empty results instead of error
+            return jsonify({
+                'total': 0,
+                'results': []
+            })
         
         with open(log_file, 'r') as f:
             data = json.load(f)
@@ -166,7 +188,11 @@ def search_offers():
             'results': results[:100]  # Limit to 100 results
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'total': 0,
+            'results': [],
+            'error': str(e)
+        })
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 7001)))

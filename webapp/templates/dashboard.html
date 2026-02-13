@@ -320,8 +320,15 @@
                     return response.json();
                 })
                 .then(data => {
-                    if (data.error) {
-                        document.getElementById('statsGrid').innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+                    if (data.error && data.total_offers_scanned === 0) {
+                        // Show a friendly message when no data
+                        document.getElementById('statsGrid').innerHTML = `
+                            <div class="stat-card" style="grid-column: 1 / -1; text-align: center;">
+                                <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                                <div style="font-size: 16px; color: #666; margin-bottom: 10px;">No scrape data yet</div>
+                                <div style="font-size: 13px; color: #999;">Run the script from the home page to start scraping data.</div>
+                            </div>
+                        `;
                         return;
                     }
                     
@@ -366,9 +373,17 @@
                 })
                 .catch(error => {
                     console.error('Error loading stats:', error);
-                    document.getElementById('statsGrid').innerHTML = `<div class="error">Failed to load stats: ${escapeHtml(error.message)}</div>`;
+                    document.getElementById('statsGrid').innerHTML = `
+                        <div class="stat-card" style="grid-column: 1 / -1; text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+                            <div style="font-size: 16px; color: #666; margin-bottom: 5px;">Error loading stats</div>
+                            <div style="font-size: 12px; color: #999;">${escapeHtml(error.message)}</div>
+                        </div>
+                    `;
                 });
         }
+        
+        function performSearch() {
             const query = document.getElementById('searchInput').value;
             const matchOnly = document.getElementById('matchOnly').checked;
             
@@ -377,22 +392,31 @@
                 match_only: matchOnly
             });
             
-            document.getElementById('resultsContainer').innerHTML = '<div class="loading"><span class="spinner"></span>Searching...</div>';
+            document.getElementById('resultsContainer').innerHTML = '<div class="loading"><span class="spinner"></span>Loading results...</div>';
             
             fetch(`/api/search?${params}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.error) {
-                        document.getElementById('resultsContainer').innerHTML = `<div class="error">${data.error}</div>`;
+                    if (data.total === 0 && !query) {
+                        // No results and no search query - show friendly message
+                        document.getElementById('resultsCount').innerHTML = 'No data available yet';
+                        document.getElementById('resultsContainer').innerHTML = `
+                            <div style="text-align: center; color: #999; padding: 40px 20px;">
+                                <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
+                                <div style="font-size: 16px; margin-bottom: 5px;">Run the scraper to see results</div>
+                                <div style="font-size: 13px;">Go back home and click "Run Script" to start scraping offers.</div>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    if (data.total === 0) {
+                        document.getElementById('resultsCount').innerHTML = 'No results found for your search';
+                        document.getElementById('resultsContainer').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">No results match your search criteria.</div>';
                         return;
                     }
                     
                     document.getElementById('resultsCount').innerHTML = `Found ${data.total} result${data.total !== 1 ? 's' : ''}`;
-                    
-                    if (data.results.length === 0) {
-                        document.getElementById('resultsContainer').innerHTML = '<div class="loading">No results found</div>';
-                        return;
-                    }
                     
                     document.getElementById('resultsContainer').innerHTML = data.results.map(offer => {
                         const highlightedUrl = query ? highlightText(offer.url, query) : escapeHtml(offer.url);
@@ -413,8 +437,26 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    document.getElementById('resultsContainer').innerHTML = `<div class="error">Failed to search</div>`;
+                    document.getElementById('resultsContainer').innerHTML = `<div class="error">Error loading results: ${escapeHtml(error.message)}</div>`;
                 });
+        }
+        
+        let lastModified = null;
+        
+        function autoRefreshResults() {
+            // Check if file has been updated and refresh if needed
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    const currentModified = data.session_start;
+                    if (lastModified && lastModified !== currentModified) {
+                        // File was updated, reload stats and results
+                        loadStats();
+                        performSearch();
+                    }
+                    lastModified = currentModified;
+                })
+                .catch(error => console.error('Auto-refresh error:', error));
         }
         
         // Allow search on Enter key
@@ -422,8 +464,12 @@
             if (e.key === 'Enter') performSearch();
         });
         
-        // Load stats on page load
+        // Load stats and all results on page load
         loadStats();
+        performSearch();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(autoRefreshResults, 5000);
     </script>
 </body>
 </html>
