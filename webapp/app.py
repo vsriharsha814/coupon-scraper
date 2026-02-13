@@ -45,9 +45,11 @@ def capture_script_output():
             if line:
                 timestamp = datetime.now().strftime("%H:%M:%S")
                 script_logs.append(f"[{timestamp}] {line}")
+                print(f"[LOG] {line}")
         
         process.wait()
         script_status = "completed"
+        script_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Script completed successfully!")
     except Exception as e:
         script_status = f"error: {str(e)}"
         script_logs.append(f"ERROR: {str(e)}")
@@ -56,10 +58,13 @@ def capture_script_output():
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    global script_running
+    global script_running, script_logs
     if request.method == 'POST':
         if script_running:
             return jsonify({"status": "error", "message": "Script is already running"}), 400
+        
+        # Clear previous logs
+        script_logs = []
         
         # Run script in background thread
         thread = threading.Thread(target=capture_script_output)
@@ -76,7 +81,8 @@ def status():
     return jsonify({
         "running": script_running,
         "status": script_status,
-        "logs": script_logs[-100:]  # Last 100 logs
+        "logs": script_logs,
+        "log_count": len(script_logs)
     })
 
 @app.route('/logs', methods=['GET'])

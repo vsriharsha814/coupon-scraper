@@ -218,6 +218,7 @@
         const logsList = document.getElementById('logsList');
         let isRunning = false;
         let statusCheckInterval;
+        let lastLogCount = 0;
         
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -247,8 +248,9 @@
                         }
                     }
                     
-                    // Update logs
-                    if (data.logs) {
+                    // Update logs only if there are new ones
+                    if (data.logs && data.logs.length > lastLogCount) {
+                        lastLogCount = data.logs.length;
                         logsList.innerHTML = data.logs.map(log => {
                             const isError = log.includes('ERROR') || log.includes('error');
                             return `<div class="log-line ${isError ? 'error' : ''}">${escapeHtml(log)}</div>`;
@@ -256,11 +258,24 @@
                         // Auto scroll to bottom
                         logsContainer.scrollTop = logsContainer.scrollHeight;
                     }
+                    
+                    // If running, keep polling frequently; if idle, poll less often
+                    if (isRunning && !statusCheckInterval) {
+                        statusCheckInterval = setInterval(updateStatus, 1000);  // Every 1 second when running
+                    } else if (!isRunning && statusCheckInterval) {
+                        clearInterval(statusCheckInterval);
+                        statusCheckInterval = null;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
                 });
         }
         
         function runScript() {
             if (isRunning) return;
+            
+            lastLogCount = 0;  // Reset log count
             
             fetch('/', {
                 method: 'POST',
@@ -272,10 +287,6 @@
             .then(data => {
                 if (data.status === 'success') {
                     updateStatus();
-                    // Check status every 2 seconds during execution
-                    statusCheckInterval = setInterval(() => {
-                        updateStatus();
-                    }, 2000);
                 }
             })
             .catch(error => {
@@ -287,12 +298,6 @@
         
         // Initial status check
         updateStatus();
-        // Check status every 5 seconds when idle
-        setInterval(() => {
-            if (!isRunning) {
-                updateStatus();
-            }
-        }, 5000);
     </script>
 </body>
 </html>

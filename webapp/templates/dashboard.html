@@ -206,10 +206,12 @@
             color: #155724;
         }
         
-        .loading {
-            text-align: center;
-            color: #999;
-            padding: 20px;
+        .highlight {
+            background: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-weight: 600;
+            color: #000;
         }
         
         .spinner {
@@ -285,12 +287,41 @@
     </div>
     
     <script>
+        function highlightText(text, query) {
+            if (!query || !text) return text;
+            
+            // Create a regex pattern that matches the query (case-insensitive)
+            const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            
+            // Split by the regex and map to include highlights
+            const parts = text.split(regex);
+            
+            return parts.map((part, index) => {
+                if (index % 2 === 1) { // Matched parts are at odd indices
+                    return `<span class="highlight">${escapeHtml(part)}</span>`;
+                }
+                return escapeHtml(part);
+            }).join('');
+        }
+        
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
         function loadStats() {
             fetch('/api/stats')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
-                        document.getElementById('statsGrid').innerHTML = `<div class="error">${data.error}</div>`;
+                        document.getElementById('statsGrid').innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
                         return;
                     }
                     
@@ -305,11 +336,11 @@
                     document.getElementById('statsGrid').innerHTML = `
                         <div class="stat-card">
                             <div class="stat-label">Session Start</div>
-                            <div style="font-size: 14px; color: #333;">${data.session_start || 'N/A'}</div>
+                            <div style="font-size: 14px; color: #333;">${escapeHtml(data.session_start || 'N/A')}</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Search Term</div>
-                            <div style="font-size: 14px; color: #333;">${data.search_term || 'N/A'}</div>
+                            <div style="font-size: 14px; color: #333;">${escapeHtml(data.search_term || 'N/A')}</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Categories Found</div>
@@ -326,7 +357,7 @@
                             <div style="font-size: 12px; margin-top: 10px;">
                                 ${data.matches.slice(0, 3).map(m => `
                                     <div style="padding: 5px; background: #d4edda; border-radius: 4px; margin-bottom: 5px; color: #155724;">
-                                        ✓ ${m.url}
+                                        ✓ ${escapeHtml(m.url)}
                                     </div>
                                 `).join('')}
                             </div>
@@ -334,12 +365,10 @@
                     ` : '');
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('statsGrid').innerHTML = `<div class="error">Failed to load stats</div>`;
+                    console.error('Error loading stats:', error);
+                    document.getElementById('statsGrid').innerHTML = `<div class="error">Failed to load stats: ${escapeHtml(error.message)}</div>`;
                 });
         }
-        
-        function performSearch() {
             const query = document.getElementById('searchInput').value;
             const matchOnly = document.getElementById('matchOnly').checked;
             
@@ -365,17 +394,22 @@
                         return;
                     }
                     
-                    document.getElementById('resultsContainer').innerHTML = data.results.map(offer => `
-                        <div class="offer-item">
-                            <div class="offer-url">
-                                <a href="${offer.url}" target="_blank">🔗 ${offer.url}</a>
+                    document.getElementById('resultsContainer').innerHTML = data.results.map(offer => {
+                        const highlightedUrl = query ? highlightText(offer.url, query) : escapeHtml(offer.url);
+                        const highlightedDesc = query ? highlightText(offer.description, query) : escapeHtml(offer.description);
+                        
+                        return `
+                            <div class="offer-item">
+                                <div class="offer-url">
+                                    <a href="${offer.url}" target="_blank">🔗 <span>${highlightedUrl}</span></a>
+                                </div>
+                                <div class="offer-description">${highlightedDesc || 'No description available'}</div>
+                                <div class="offer-match ${offer.match}">
+                                    ${offer.match ? '✓ Location Match' : '✗ No Match'}
+                                </div>
                             </div>
-                            <div class="offer-description">${offer.description || 'No description available'}</div>
-                            <div class="offer-match ${offer.match}">
-                                ${offer.match ? '✓ Location Match' : '✗ No Match'}
-                            </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 })
                 .catch(error => {
                     console.error('Error:', error);
