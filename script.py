@@ -35,6 +35,21 @@ def scrape_coupons():
         "results": {"categories_found": [], "offers_scanned": []}
     }
     
+    # Boilerplate text to remove from descriptions
+    BOILERPLATE_TEXTS = [
+        "All Great Clips® salons are independently owned and operated.",
+        "All Great Clips salons are independently owned and operated."
+    ]
+    
+    def clean_description(text):
+        """Remove boilerplate text from description"""
+        cleaned = text
+        for boilerplate in BOILERPLATE_TEXTS:
+            cleaned = cleaned.replace(boilerplate, "")
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\n\n+', '\n', cleaned)
+        return cleaned.strip()
+    
     try:
         print(f"--- TIER 1: Accessing Homepage (Filtering Expired) ---")
         driver.get("https://coupons-2save.com/greatclips")
@@ -79,10 +94,10 @@ def scrape_coupons():
                 time.sleep(2)
                 
                 full_text = details_element.text
-                entry["raw_description"] = full_text
+                # Clean the description before saving
+                entry["raw_description"] = clean_description(full_text)
                 
-                # REMOVE THE BOILERPLATE: This gets rid of the 'All Great Clips...' sentence
-                # so that searching for 'all' won't cause a false positive.
+                # REMOVE THE BOILERPLATE for matching
                 clean_text = full_text.replace("All Great Clips® salons are independently owned and operated.", "")
                 clean_text = clean_text.replace("All Great Clips salons are independently owned and operated.", "")
                 

@@ -461,21 +461,37 @@
         }
         
         let lastModified = null;
+        let autoRefreshInterval = null;
+        let isScriptRunning = false;
         
         function autoRefreshResults() {
-            // Check if file has been updated and refresh if needed
-            fetch('/api/stats')
+            // Check if script is running via the home page status endpoint
+            fetch('/status')
                 .then(response => response.json())
-                .then(data => {
-                    const currentModified = data.session_start;
-                    if (lastModified && lastModified !== currentModified) {
-                        // File was updated, reload stats and results
-                        loadStats();
-                        performSearch();
+                .then(statusData => {
+                    isScriptRunning = statusData.running;
+                    
+                    // Only refresh if script is actively running
+                    if (isScriptRunning) {
+                        fetch('/api/stats')
+                            .then(response => response.json())
+                            .then(data => {
+                                const currentModified = data.session_start;
+                                if (lastModified && lastModified !== currentModified) {
+                                    // File was updated, reload stats and results
+                                    loadStats();
+                                    performSearch();
+                                }
+                                lastModified = currentModified;
+                            })
+                            .catch(error => console.error('Auto-refresh error:', error));
+                    } else if (autoRefreshInterval) {
+                        // Script is done, stop the auto-refresh
+                        clearInterval(autoRefreshInterval);
+                        autoRefreshInterval = null;
                     }
-                    lastModified = currentModified;
                 })
-                .catch(error => console.error('Auto-refresh error:', error));
+                .catch(error => console.error('Status check error:', error));
         }
         
         // Allow search on Enter key
@@ -487,8 +503,8 @@
         loadStats();
         performSearch();
         
-        // Auto-refresh every 5 seconds
-        setInterval(autoRefreshResults, 5000);
+        // Start auto-refresh - only runs when script is active, stops when done
+        autoRefreshInterval = setInterval(autoRefreshResults, 2000);
     </script>
 </body>
 </html>
