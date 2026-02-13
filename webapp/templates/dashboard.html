@@ -313,6 +313,25 @@
                 .replace(/'/g, "&#039;");
         }
         
+        function formatDateTime(dateTimeString) {
+            // Parse ISO format datetime: "2026-02-13 15:03:59"
+            try {
+                const dt = new Date(dateTimeString.replace(' ', 'T'));
+                const options = { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                };
+                return dt.toLocaleDateString('en-US', options);
+            } catch (e) {
+                return dateTimeString;
+            }
+        }
+        
         function loadStats() {
             fetch('/api/stats')
                 .then(response => {
@@ -324,7 +343,7 @@
                         // Show a friendly message when no data
                         document.getElementById('statsGrid').innerHTML = `
                             <div class="stat-card" style="grid-column: 1 / -1; text-align: center;">
-                                <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                                <div style="font-size: 48px; margin-bottom: 10px;">fformatDateTime(data.session_start || 'N/A')start || 'N/A')
                                 <div style="font-size: 16px; color: #666; margin-bottom: 10px;">No scrape data yet</div>
                                 <div style="font-size: 13px; color: #999;">Run the script from the home page to start scraping data.</div>
                             </div>

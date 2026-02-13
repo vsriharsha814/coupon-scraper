@@ -231,6 +231,25 @@
             return div.innerHTML;
         }
         
+        function formatDateTime(dateTimeString) {
+            // Parse ISO format datetime: "2026-02-13 15:03:59"
+            try {
+                const dt = new Date(dateTimeString.replace(' ', 'T'));
+                const options = { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                };
+                return dt.toLocaleDateString('en-US', options);
+            } catch (e) {
+                return dateTimeString;
+            }
+        }
+        
         function updateStatus() {
             fetch('/status')
                 .then(response => response.json())
@@ -270,7 +289,7 @@
                         .then(stats => {
                             if (stats.session_start && stats.session_start !== 'No data yet') {
                                 document.getElementById('lastRunBox').style.display = 'block';
-                                document.getElementById('lastRunTime').textContent = stats.session_start;
+                                document.getElementById('lastRunTime').textContent = formatDateTime(stats.session_start);
                             }
                         })
                         .catch(() => {});
